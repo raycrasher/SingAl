@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body { 
+	background: #333; 
+	margin:0;
+	padding:0;
+}
+
+.lyric {
+  position: relative;
+  white-space: nowrap;
+  color: lightblue;
+  text-shadow: 0 0 3px rgba(0,0,0,1); 
+}
+
+.lyric::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: red;
+  overflow: hidden;
+  width: 40%;
+  /* animation: run-text 5s infinite linear; */
+  text-shadow: 0 0 3px rgba(255,255,255,1); 
+}
+
+@keyframes run-text {
+  from { width: 0 }
+  to { width: 100% }
+}
+
+#bgvideo {
+	width: 100%;
+}
+
+</style>
+</head>
+<body>
+	<div id="app" class="container">
+		<video id="bgvideo" autoplay loop muted>
+			<source src="/video?index=0" />
+		</video>
+		<audio id="song">
+		</audio>
+	</div>
+	<script src="js/vue.js" language="javascript"></script>
+	<script language="javascript">
+
+	</script>
+
+</body>
+</html>

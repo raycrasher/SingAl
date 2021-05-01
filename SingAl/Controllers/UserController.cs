@@ -1,4 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using SingAl.Models;
 using SingAl.Services;
 using System;
 using System.Collections.Generic;
@@ -10,21 +12,57 @@ namespace SingAl.Controllers
     public class UserController : Controller
     {
         SingAlService _service;
+        SongRepository _repo;
+        IHubContext<WebPlayerHub> _hubcontext;
 
-        public UserController(SingAlService service)
+        public record JoinModel(string Nickname);
+        public record QueueSongModel(Guid SingerId, Guid SongId);
+
+        public UserController(SingAlService service, SongRepository repo, IHubContext<WebPlayerHub> hubcontext)
         {
             _service = service;
+            _repo = repo;
+            _hubcontext = hubcontext;
         }
 
-        public IActionResult Index()
+        [HttpPost]
+        [Route("/addsong")]
+        public async Task<IActionResult> QueueSong([FromBody] QueueSongModel parameters)
         {
-            return View();
-        }
+            var (singer, song) = await _service.QueueSong(parameters.SingerId, parameters.SongId);
+            if(singer == null)
+            {
+                return BadRequest("No such singer exists");
+            }
+            if (song == null)
+            {
+                return BadRequest("No such song exists");
+            }
 
-        public async Task<IActionResult> QueueSong(Guid songId)
-        {
-            await _service.QueueSong(songId);
+            await _hubcontext.Clients.All.SendAsync("SongAdded", singer, song);
+            Console.WriteLine($"{singer.Nickname} has enqueued {song.Title}");
             return Ok();
+        }
+
+        [HttpPost]
+        [Route("/join")]
+        public IActionResult AddSinger([FromBody] JoinModel join)
+        {
+            var result = _service.TryAddSinger(join.Nickname);
+            if (!result.Ok)
+                return BadRequest(result.Error);
+            else
+            {
+                Console.WriteLine($"User {join.Nickname}has logged in");
+                return Json(new { singerId = result.Id });
+            }
+        }
+
+        [HttpGet]
+        [Route("/search")]
+        public async Task<IEnumerable<Song>> SearchSong(string query)
+        {
+            return await _repo.GetMatchingSongs(query);
         }
     }
 }

@@ -250,7 +250,11 @@ paket-files/
 # JetBrains Rider
 .idea/
 *.sln.iml
-/KleberBatch.BatchProcessor.DpidAllocation/appsettings.Development.json
-/KleberBatch.BatchProcessor.GenericKleberMethods/appsettings.Development.json
-/KleberBatch.BatchProcessor.GenericKleberMethods/batchresult_0000.txt
-/KleberBatch.BatchProcessor.GenericKleberMethods/batchresult_0001.txt
+
+**/timidity
+**/background-movies
+**/songs
+**/SingAl/extractlyrics
+**/lame
+**/soundfont
+**/songs_src
