@@ -19,7 +19,6 @@
     },
     "SingAl": {
       "commandName": "Project",
-      "launchBrowser": true,
       "launchUrl": "player.html",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"

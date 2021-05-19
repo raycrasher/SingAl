@@ -53,7 +53,7 @@ namespace SingAl.Controllers
                 return BadRequest(result.Error);
             else
             {
-                Console.WriteLine($"User {join.Nickname}has logged in");
+                Console.WriteLine($"User {join.Nickname} has logged in");
                 return Json(new { singerId = result.Id });
             }
         }

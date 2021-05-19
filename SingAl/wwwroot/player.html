@@ -1,55 +1,89 @@
 <!DOCTYPE html>
 <html>
 <head>
-<style>
-body { 
-	background: #333; 
-	margin:0;
-	padding:0;
-}
+	<link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+	<style>
+		body {
+			background: #333;
+			margin: 0;
+			padding: 0;
+			color: white;
+		}
 
-.lyric {
-  position: relative;
-  white-space: nowrap;
-  color: lightblue;
-  text-shadow: 0 0 3px rgba(0,0,0,1); 
-}
+        .lyricsbox {
+			font-size: 2em;
+			font-weight: bold;
+			text-align: center;
+			padding-top: 400px;
+        }
 
-.lyric::after {
-  content: attr(data-text);
-  position: absolute;
-  left: 0;
-  top: 0;
-  color: red;
-  overflow: hidden;
-  width: 40%;
-  /* animation: run-text 5s infinite linear; */
-  text-shadow: 0 0 3px rgba(255,255,255,1); 
-}
+        .lyrics {
+            position: relative;
+            white-space: nowrap;
+            color: lightblue;
+            text-shadow: 0 0 3px rgba(0,0,0,1);
+			white-space: pre;
+        }
 
-@keyframes run-text {
-  from { width: 0 }
-  to { width: 100% }
-}
+        .lyrics::after {
+            content: attr(data-text);
+            position: absolute;
+            left: 0;
+            /*top: 0;*/
+            color: red;
+            overflow: hidden;
+            width: var(--highlight);
+                
+            text-shadow: 0 0 3px rgba(255,255,255,1);
+            white-space: pre;
+        }
 
-#bgvideo {
-	width: 100%;
-}
-
-</style>
+		#bgvideo {
+			width: 100%;
+			position: absolute;
+			z-index: -100;
+		}
+        .songTopBar {
+			color:white;
+			font-weight: bold;
+			font-size: 1.4em;
+			background: #00000088;
+        }
+		.songTitle {
+			padding-top: 300px;
+			font-size: 3em;
+		}
+		.songTitle.title {
+			font-size: 1.1em;
+		}
+	</style>
 </head>
 <body>
-	<div id="app" class="container">
-		<video id="bgvideo" autoplay loop muted>
-			<source src="/video?index=0" />
-		</video>
-		<audio id="song">
-		</audio>
+	<div id="app" class="container-fluid">
+		<div>
+			<video id="bgvideo" autoplay loop muted :src="video" ref="videoPlayer"></video>
+			<div class="songTopBar">
+				<span v-if="nextSong">
+					NEXT: <strong>{{nextSong?.title}}</strong> : <em>{{nextSong?.artist}}</em>
+				</span>
+			</div>
+			<div class="songTitle" v-if="showTitle">
+				<p class="text-center title">{{currentSong?.title}}</p>
+				<p class="text-center"><em>{{currentSong?.artist}}</em></p>
+			</div>
+			<div class="lyricsbox">
+				<div><span class="lyrics" v-for="chunk in songLine1" :data-text="chunk.text" v-bind:style="{ '--highlight': chunk.highlight }">{{ chunk.text }}</span></div>
+				<div><span class="lyrics" v-for="chunk in songLine2" :data-text="chunk.text" v-bind:style="{ '--highlight': chunk.highlight }">{{ chunk.text }}</span></div>
+			</div>
+			<audio id="song" :src="audio" autoplay ref="audioPlayer">
+			</audio>
+		</div>
 	</div>
-	<script src="js/vue.js" language="javascript"></script>
-	<script language="javascript">
-
-	</script>
+	<script src="js/bootstrap/bootstrap.min.js"></script>
+	<script src="js/signalr/dist/browser/signalr.min.js"></script>
+	<script src="js/vue.js"></script>
+	<script src="js/util.js"></script>
+	<script src="js/player.js"></script>
 
 </body>
 </html>

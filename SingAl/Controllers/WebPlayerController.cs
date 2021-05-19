@@ -25,7 +25,7 @@ namespace SingAl.Controllers
 
         [HttpGet]
         [Route("/video")]
-        public IActionResult GetBackgroundVideo(int index)
+        public PhysicalFileResult GetBackgroundVideo(int index)
         {
             return PhysicalFile(Path.Combine(_env.ContentRootPath, _service.BackgroundVideos[index % _service.BackgroundVideos.Length]), "application/octet-stream");
         }
@@ -36,7 +36,7 @@ namespace SingAl.Controllers
         {
             if (singer != null)
             {
-                return _service.SongQueue.Where(s => s.Singer.Id == singer.Value).ToArray();                
+                return _service.SongQueue.Where(s => s.Singer.Id == singer.Value).ToArray();
             }
             else
             {
@@ -50,5 +50,18 @@ namespace SingAl.Controllers
         {
             return _repo.GetSongLyrics(songId);
         }
+
+        [HttpGet]
+        [Route("/songAudio")]
+        public async Task<IActionResult> GetSongAudio(Guid songId)
+        {
+            string songFile = await _repo.GetSongFilename(songId);
+            if (!string.IsNullOrEmpty(songFile))
+            {
+                return PhysicalFile(Path.Combine(_env.ContentRootPath, songFile), "audio/mpeg");
+            }
+            else return NotFound();
+        }
     }
+
 }

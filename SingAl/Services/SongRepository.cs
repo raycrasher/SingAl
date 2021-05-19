@@ -23,9 +23,9 @@ namespace SingAl.Services
         void BuildSongDb()
         {
             var files = from lyricsFile in Directory.GetFiles("./songs", "*.lyrics")
-                        let imageFile = lyricsFile.Substring(0, lyricsFile.Length - ".lyrics".Length) + ".mp3"
-                        where File.Exists(imageFile)
-                        select (lyricsFile, imageFile);
+                        let audioFile = lyricsFile.Substring(0, lyricsFile.Length - ".lyrics".Length) + ".mp3"
+                        where File.Exists(audioFile)
+                        select (lyricsFile, audioFile);
             
             foreach(var songEntry in files)
             {
@@ -45,13 +45,22 @@ namespace SingAl.Services
                 }
                 if (songdata.Title != null)
                 {
-                    _songs[guid] = new(songEntry.lyricsFile, songEntry.imageFile, songdata);
+                    _songs[guid] = new(songEntry.lyricsFile, songEntry.audioFile, songdata);
                 }
             }
         }
 
+        internal async Task<string> GetSongFilename(Guid songId)
+        {
+            await _songDbLoadTask;
+            if (_songs.TryGetValue(songId, out var song))
+            {
+                return song.AudioFile;
+            }
+            else return null;
+        }
 
-        record SongEntry(string LyricsFile, string ImageFile, Song Song);
+        record SongEntry(string LyricsFile, string AudioFile, Song Song);
 
         Dictionary<Guid, SongEntry> _songs = new();
 
