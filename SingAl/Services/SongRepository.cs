@@ -1,4 +1,6 @@
 ﻿using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SingAl.Models;
 using System;
 using System.Collections.Generic;
@@ -10,43 +12,50 @@ namespace SingAl.Services
 {
     public class SongRepository
     {
-        Task _songDbLoadTask;
+        private Task _songDbLoadTask;
         private IWebHostEnvironment _env;
+        private AppSettings _settings;
+        private ISongConverter _converter;
+        private ILyricExtractor _lyricExtractor;
+        private ILogger<SongRepository> _logger;
 
-        public SongRepository(IWebHostEnvironment env)
+        private record SongEntry(Guid Id, Song Song, Lyric[] Lyrics, Lazy<Task<string>> Audio);
+
+        Dictionary<Guid, SongEntry> _songs = new();
+
+
+        public SongRepository(
+            IWebHostEnvironment env, 
+            IOptions<AppSettings> settings,
+            ISongConverter converter,
+            ILyricExtractor lyricExtractor,
+            ILogger<SongRepository> logger
+            )
         {
             _songDbLoadTask = Task.Run(BuildSongDb);
             _env = env;
-
+            _settings = settings.Value;
+            _converter = converter;
+            _lyricExtractor = lyricExtractor;
+            _logger = logger;
         }
 
-        void BuildSongDb()
+        async Task BuildSongDb()
         {
-            var files = from lyricsFile in Directory.GetFiles("./songs", "*.lyrics")
-                        let audioFile = lyricsFile.Substring(0, lyricsFile.Length - ".lyrics".Length) + ".mp3"
-                        where File.Exists(audioFile)
-                        select (lyricsFile, audioFile);
-            
-            foreach(var songEntry in files)
+            _logger.LogInformation("Building song database...");
+            var lazyLoadTasks = (from karFile in Directory.GetFiles(_settings.SongDirectory, "*.kar")
+                                 let lyrics = new Lazy<Task<(Song song, Lyric[] lyrics)>>(() => _lyricExtractor.GetLyrics(karFile))
+                                 let audio = new Lazy<Task<string>>(() => _converter.ConvertKarToOgg(karFile))                                
+                                 select (id: Guid.NewGuid(), audio, lyrics)).ToArray();
+
+            foreach(var entry in lazyLoadTasks)
             {
-                var guid = Guid.NewGuid();
-                var songdata = new Song();
-                songdata.Id = guid;
-                using var reader = new StreamReader(songEntry.lyricsFile);
-                for(int i = 0; i < 3; i++)
-                {
-                    var line = reader.ReadLine();
-                    if (line.StartsWith("TITLE "))
-                        songdata.Title = line.Substring("TITLE ".Length);
-                    else if(line.StartsWith("ALBUM "))
-                        songdata.Album = line.Substring("ALBUM ".Length);
-                    else if (line.StartsWith("ARTIST "))
-                        songdata.Artist = line.Substring("ARTIST ".Length);
-                }
-                if (songdata.Title != null)
-                {
-                    _songs[guid] = new(songEntry.lyricsFile, songEntry.audioFile, songdata);
-                }
+                var (song, lyrics) = await entry.lyrics.Value; // preload lyrics
+                if (song == null || lyrics == null)
+                    continue;
+                song.Id = entry.id;
+                _songs[entry.id] = new(entry.id, song, lyrics, entry.audio);
+                _logger.LogInformation("Adding {song} to db", song.Title);
             }
         }
 
@@ -55,14 +64,10 @@ namespace SingAl.Services
             await _songDbLoadTask;
             if (_songs.TryGetValue(songId, out var song))
             {
-                return song.AudioFile;
+                return await song.Audio.Value;
             }
             else return null;
         }
-
-        record SongEntry(string LyricsFile, string AudioFile, Song Song);
-
-        Dictionary<Guid, SongEntry> _songs = new();
 
         public async Task<Song> GetSong(Guid songId)
         {
@@ -96,20 +101,23 @@ namespace SingAl.Services
             await _songDbLoadTask;
             if (!_songs.TryGetValue(songId, out var songEntry))
                 return Enumerable.Empty<Lyric>();
-            var lines = (await File.ReadAllLinesAsync(songEntry.LyricsFile))
-                .Where(l => l.Length > 0 && char.IsDigit(l[0]));
-            List<Lyric> lyrics = new();
-            foreach(var line in lines)
-            {
-                var firstSpace = line.IndexOf(' ');
-                var lyric = new Lyric()
-                {
-                    Seconds = double.Parse(line.Substring(0, firstSpace)),
-                    Text = line.Substring(firstSpace + 1)
-                };
-                lyrics.Add(lyric);
-            }
-            return lyrics;
+
+            return songEntry.Lyrics;
+
+            //var lines = (await File.ReadAllLinesAsync(songEntry.LyricsFile))
+            //    .Where(l => l.Length > 0 && char.IsDigit(l[0]));
+            //List<Lyric> lyrics = new();
+            //foreach(var line in lines)
+            //{
+            //    var firstSpace = line.IndexOf(' ');
+            //    var lyric = new Lyric()
+            //    {
+            //        Seconds = double.Parse(line.Substring(0, firstSpace)),
+            //        Text = line.Substring(firstSpace + 1)
+            //    };
+            //    lyrics.Add(lyric);
+            //}
+            //return lyrics;
         }
     }
 }

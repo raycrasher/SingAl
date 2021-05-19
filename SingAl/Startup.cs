@@ -18,6 +18,8 @@ namespace SingAl
 {
     public class Startup
     {
+        private AppSettings _appSettings;
+
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -28,6 +30,7 @@ namespace SingAl
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            ConfigureAppSettings(services);
             services.AddControllers();
             services.AddSwaggerGen(c =>
             {
@@ -36,7 +39,19 @@ namespace SingAl
             services.AddSignalR();
             services.AddSingleton<SingAlService>();
             services.AddSingleton<SongRepository>();
+            services.AddLogging(l => { l.AddConsole(); });
+            services.AddSingleton<ISongConverter, SongConverter>();
+            services.AddSingleton<ILyricExtractor, LyricExtractorService>();
 
+        }
+
+        private void ConfigureAppSettings(IServiceCollection services)
+        {
+            _appSettings = new AppSettings();
+            var appSettings = Configuration.GetSection("AppSettings");
+            appSettings.Bind(_appSettings);
+            services.AddOptions();
+            services.Configure<AppSettings>(appSettings);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
