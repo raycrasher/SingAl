@@ -30,17 +30,19 @@ namespace SingAl.Services
         public string[] BackgroundVideos { get; init; }
 
 
-        public async Task<(Singer Singer, Song Song)> QueueSong(Guid singerId, Guid songId)
+        public async Task<QueuedSong> QueueSong(Guid singerId, Guid songId)
         {            
             var singer = Singers.FirstOrDefault(s => s.Id == singerId);
             if (singer == null)
-                return (null, null);
+                return new (null, null);
 
             Song song = await _repo.GetSong(songId);
             if (song == null)
-                return (null, null);            
-            SongQueue.Enqueue(new (singer, song));
-            return (singer, song);
+                return new (null, null);
+            var queued = new QueuedSong(singer, song);
+            SongQueue.Enqueue(queued);
+            _repo.StartCachingSong(songId);
+            return queued;
         }
 
         internal (Guid Id, bool Ok, string Error) TryAddSinger(string nickname)

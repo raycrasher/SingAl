@@ -39,6 +39,7 @@ namespace SingAl
             services.AddSignalR();
             services.AddSingleton<SingAlService>();
             services.AddSingleton<SongRepository>();
+            services.AddHostedService(provider => provider.GetRequiredService<SongRepository>());
             services.AddLogging(l => { l.AddConsole(); });
             services.AddSingleton<ISongConverter, SongConverter>();
             services.AddSingleton<ILyricExtractor, LyricExtractorService>();

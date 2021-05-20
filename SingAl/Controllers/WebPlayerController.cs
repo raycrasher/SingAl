@@ -45,6 +45,18 @@ namespace SingAl.Controllers
         }
 
         [HttpGet]
+        [Route("/dequeue")]
+        public JsonResult DequeueAndGetNext()
+        {
+            if (_service.SongQueue.TryDequeue(out var dequeued))
+            {
+                return Json(new { Song = dequeued.Song, Singer = dequeued.Singer, Next = _service.SongQueue.ToArray() });
+            }
+            else return Json(new { Song = (Song)null, Singer = (Singer)null, Next = new object[0] });
+        }
+
+
+        [HttpGet]
         [Route("/lyrics")]
         public Task<IEnumerable<Lyric>> GetSongLyrics(Guid songId)
         {

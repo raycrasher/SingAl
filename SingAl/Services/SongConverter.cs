@@ -6,6 +6,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using CliWrap;
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace SingAl.Services
 {
@@ -17,12 +19,14 @@ namespace SingAl.Services
     public class SongConverter: ISongConverter
     {
         private AppSettings _settings;
-        
-        public SongConverter(IOptions<AppSettings> settings)
+        private ILogger<SongConverter> _logger;
+
+        public SongConverter(IOptions<AppSettings> settings, ILogger<SongConverter> logger)
         {
             _settings = settings.Value;
             if (!Directory.Exists(_settings.SongCacheDir))
                 Directory.CreateDirectory(_settings.SongCacheDir);
+            _logger = logger;
         }
 
         public async Task<string> ConvertKarToOgg(string inputFile)
@@ -32,16 +36,27 @@ namespace SingAl.Services
             if (File.Exists(outputFilename))
                 return outputFilename;
 
+            using var memStream = new MemoryStream(1024000);
+            var guidStr = Guid.NewGuid().ToString("D");
+
             var timidity = Cli.Wrap(_settings.TimidityPath)
-                .WithArguments($"-Ow -W- '{inputFile}'");
+                .WithArguments($"-Ow -W- --preserve-silence \"{inputFile}\" -o \"{guidStr}.wav\"");
+            
             var lame = Cli.Wrap(_settings.LamePath)
-                .WithArguments($"- '{outputFilename}'");
+                .WithArguments($"{guidStr}.wav \"{outputFilename}\"")
+                .WithStandardErrorPipe(PipeTarget.ToDelegate(Log));
 
-            Command cmd = timidity | lame;
+            await timidity.ExecuteAsync();
+            await lame.ExecuteAsync();
 
-            await cmd.ExecuteAsync();
+            File.Delete($"{guidStr}.wav");
 
             return outputFilename;
+        }
+
+        private void Log(string msg)
+        {
+            _logger.LogDebug(msg);
         }
     }
 }

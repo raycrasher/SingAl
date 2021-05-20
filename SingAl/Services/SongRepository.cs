@@ -4,13 +4,18 @@ using Microsoft.Extensions.Options;
 using SingAl.Models;
 using System;
 using System.Collections.Generic;
+using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Dapper;
+using Newtonsoft.Json;
+using Microsoft.Extensions.Hosting;
+using System.Threading;
 
 namespace SingAl.Services
 {
-    public class SongRepository
+    public class SongRepository: IHostedService
     {
         private Task _songDbLoadTask;
         private IWebHostEnvironment _env;
@@ -23,7 +28,6 @@ namespace SingAl.Services
 
         Dictionary<Guid, SongEntry> _songs = new();
 
-
         public SongRepository(
             IWebHostEnvironment env, 
             IOptions<AppSettings> settings,
@@ -32,12 +36,17 @@ namespace SingAl.Services
             ILogger<SongRepository> logger
             )
         {
-            _songDbLoadTask = Task.Run(BuildSongDb);
+            //_songDbLoadTask = Task.Run(BuildSongDb);
             _env = env;
             _settings = settings.Value;
             _converter = converter;
             _lyricExtractor = lyricExtractor;
             _logger = logger;
+        }
+
+        public void StartCachingSong(Guid songId)
+        {
+            Task.Run(()=>_songs[songId].Audio.Value);
         }
 
         async Task BuildSongDb()
@@ -46,20 +55,80 @@ namespace SingAl.Services
             var lazyLoadTasks = (from karFile in Directory.GetFiles(_settings.SongDirectory, "*.kar")
                                  let lyrics = new Lazy<Task<(Song song, Lyric[] lyrics)>>(() => _lyricExtractor.GetLyrics(karFile))
                                  let audio = new Lazy<Task<string>>(() => _converter.ConvertKarToOgg(karFile))                                
-                                 select (id: Guid.NewGuid(), audio, lyrics)).ToArray();
+                                 select (id: Guid.NewGuid(), audio, lyrics, filename: karFile)).ToList();
+
+            using var db = GetSqliteDb();
+
+            // load pre-loaded songs from DB
+            var dbItems = await db.QueryAsync<(string id, string sourceFile, string title, string artist, string lyrics, string tags)>("SELECT id, sourceFile, title, artist, lyrics, tags FROM songs;");
+            foreach(var dbItem in dbItems)
+            {
+                var id = Guid.Parse(dbItem.id);
+                _songs[id] = new SongEntry(id, new Song()
+                {
+                    Title = dbItem.title,
+                    Artist = dbItem.artist,
+                    Id = id,
+                    Tags = dbItem.tags.Split(',')
+                },
+                JsonConvert.DeserializeObject<Lyric[]>(dbItem.lyrics),
+                new Lazy<Task<string>>(() => _converter.ConvertKarToOgg(dbItem.sourceFile))
+                );
+            }
+            _logger.LogInformation("Loaded {count} songs from DB", _songs.Count);
 
             foreach(var entry in lazyLoadTasks)
             {
+                if (await db.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM songs WHERE sourceFile=@filename LIMIT 1;", new { filename= entry.filename }) > 0)
+                {
+                    continue;
+                }
+
                 var (song, lyrics) = await entry.lyrics.Value; // preload lyrics
-                if (song == null || lyrics == null)
+                if (song == null || lyrics == null || string.IsNullOrEmpty(song.Title) || string.IsNullOrEmpty(song.Artist) || lyrics.Length <= 0)
                     continue;
                 song.Id = entry.id;
+                await db.ExecuteAsync("INSERT INTO songs(id, sourceFile, title, artist, lyrics, tags) VALUES(@id, @sourceFile, @title, @artist, @lyrics, @tags)", new { 
+                    id = song.Id.ToString(),
+                    sourceFile = entry.filename,
+                    title = song.Title,
+                    artist = song.Artist,
+                    lyrics = JsonConvert.SerializeObject(lyrics),
+                    tags = ""
+                });
+
                 _songs[entry.id] = new(entry.id, song, lyrics, entry.audio);
-                _logger.LogInformation("Adding {song} to db", song.Title);
+                _logger.LogInformation("Adding {song} to db", song.Title);  
             }
+            _logger.LogInformation("Final song count: {count}", _songs.Count);
         }
 
-        internal async Task<string> GetSongFilename(Guid songId)
+        private SQLiteConnection GetSqliteDb()
+        {
+            if (!string.IsNullOrWhiteSpace(_settings.SqliteFile) && !File.Exists(_settings.SqliteFile)) {
+                SQLiteConnection.CreateFile(_settings.SqliteFile);
+            }
+
+            var db = new SQLiteConnection(_settings.SqliteConnectionString);
+
+            db.Execute(
+@"CREATE TABLE IF NOT EXISTS songs (
+id string not NULL primary key, 
+sourceFile string NOT NULL,
+title string NOT NULL,
+artist string,
+lyrics string NOT NULL,
+tags string
+);
+CREATE INDEX IF NOT EXISTS sourceFileIndex ON songs (sourceFile ASC);
+CREATE INDEX IF NOT EXISTS titleIndex ON songs (title ASC);
+CREATE INDEX IF NOT EXISTS artistIndex ON songs (artist ASC);
+");
+
+            return db;
+        }
+
+        public async Task<string> GetSongFilename(Guid songId)
         {
             await _songDbLoadTask;
             if (_songs.TryGetValue(songId, out var song))
@@ -118,6 +187,17 @@ namespace SingAl.Services
             //    lyrics.Add(lyric);
             //}
             //return lyrics;
+        }
+
+        public async Task StartAsync(CancellationToken cancellationToken)
+        {
+            _songDbLoadTask = Task.Run(BuildSongDb);
+            await _songDbLoadTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return _songDbLoadTask;
         }
     }
 }

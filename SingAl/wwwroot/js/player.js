@@ -23,13 +23,39 @@
     },
     methods: {
         onSongAdded: function (singer, song) {
-            if (!this.nextSong) {
-                this.nextSong = song;
-                this.nextSinger = singer;
-            }
-
             if (!this.currentSong) {
-                this.startSong(this.nextSinger, this.nextSong);
+                this.dequeueAndPlayNext();
+            } else {
+                var showNext = async () => {
+                    var result = await fetch("/queue");
+                    if (result.ok) {
+                        var queue = await result.json();
+                        if (queue && queue.length > 0) {
+                            this.nextSong = queue[0].song;
+                            this.nextSinger = queue[0].singer;
+                        }
+                    }
+                }
+
+                showNext();
+            }
+        },
+
+        dequeueAndPlayNext: async function () {
+            var result = await fetch("/dequeue");
+            if (result.ok) {
+                var queuedSong = await result.json();
+                if (queuedSong.song) {
+                    this.startSong(queuedSong.singer, queuedSong.song);
+                }
+                if (queuedSong.next && queuedSong.next.length > 0) {
+                    this.nextSinger = queuedSong.next[0].singer;
+                    this.nextSong = queuedSong.next[0].song;
+                }
+                else {
+                    this.nextSinger = null;
+                    this.nextSong = null;
+                }
             }
         },
 
@@ -89,7 +115,7 @@
         },
 
         moveToNextLyric: function () {
-            if (this.lyricIndex >= this.processedLyrics.length) {
+            if (this.lyricIndex + 1 >= this.processedLyrics.length) {
                 return;
             }
             this.lyricIndex++;
@@ -105,10 +131,10 @@
 
         perTick: function () {
             const player = this.$refs.audioPlayer;
-            if (this.state == 'playing' && this.processedLyrics.length > 0) {
+            if (this.state == 'playing' && this.processedLyrics.length > 0 && player.readyState == 4 && !player.paused && !player.ended) {
                 const time = this.$refs.audioPlayer.currentTime;
 
-                const timeOfNextLine = this.lyricIndex + 1 >= this.processedLyrics.length ? 9999 : this.processedLyrics[this.lyricIndex + 1].time;
+                const timeOfNextLine = this.lyricIndex + 1 >= this.processedLyrics.length ? 10 : this.processedLyrics[this.lyricIndex + 1].time;
 
                 // check if title needs hiding
                 if (this.lyricIndex < 0 && time > max(timeOfNextLine - 8, 8)) {
@@ -116,7 +142,7 @@
                 }
 
                 // show first lines after title
-                if (!this.showTitle && !this.songLine1 && time > timeOfNextLine - 5) {
+                if (!this.songLine1 && time > timeOfNextLine - 5) {
                     this.moveToNextLyric();
                     if (this.processedLyrics.length > 1) {
                         this.moveToNextLyric();
@@ -135,6 +161,12 @@
 
                 if ((s1Status == 2 || s2Status == 2) && timeOfNextLine - time < 5) {
                     this.moveToNextLyric();
+                }
+            }
+            else {
+                if (player.ended) {
+                    this.currentSong = null;
+                    this.dequeueAndPlayNext();
                 }
             }
         },
