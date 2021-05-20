@@ -64,5 +64,29 @@ namespace SingAl.Controllers
         {
             return await _repo.GetMatchingSongs(query);
         }
+
+        [HttpPost]
+        [Route("/pause")]
+        public IActionResult Pause()
+        {
+            _hubcontext.Clients.All.SendAsync("Pause");
+            return Ok();
+        }
+
+        [HttpPost]
+        [Route("/play")]
+        public IActionResult Play()
+        {
+            _hubcontext.Clients.All.SendAsync("Play");
+            return Ok();
+        }
+
+        [HttpPost]
+        [Route("/skip")]
+        public IActionResult Skip()
+        {
+            _hubcontext.Clients.All.SendAsync("SkipCurrent");
+            return Ok();
+        }
     }
 }

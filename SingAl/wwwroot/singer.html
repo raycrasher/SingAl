@@ -33,7 +33,9 @@ body { background: #333; color: #eee; }
 </head>
 <body>
     <div id="app" class="container">
-        blah
+        <button v-on:click="pause()">Pause</button>
+        <button v-on:click="play()">Play</button>
+        <button v-on:click="skip()">Skip</button>
         <div v-if="state == 'init'">
             <div>
                 Enter a nickname:

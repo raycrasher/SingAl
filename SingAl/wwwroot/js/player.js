@@ -68,7 +68,8 @@
                 this.currentSongLyrics = await lyricsResult.json();
                 this.processedLyrics = this.preProcessLyrics(this.currentSongLyrics);
                 this.audio = "/songAudio?songId=" + song.id;
-                //await this.$refs.audioPlayer.play();
+                const player = this.$refs.audioPlayer;
+                player.play();
                 this.showTitle = true;
                 this.titleStart = null;
                 this.songLine1 = null;
@@ -129,6 +130,33 @@
             this.nextScreenLine = this.nextScreenLine == 1 ? 0 : 1;
         },
 
+        pause: function () {
+            const player = this.$refs.audioPlayer;
+            if (this.state == 'playing') {
+                this.state = 'paused';
+                player.pause();
+            }
+        },
+
+        play: function () {
+            const player = this.$refs.audioPlayer;
+            if (this.state == 'paused') {
+                this.state = 'playing';
+                player.play();
+            }
+        },
+
+        skipCurrent: function () {
+            const player = this.$refs.audioPlayer;
+            if (this.state == 'playing') {
+                this.state = 'stopped';
+                player.pause();
+                this.currentSong = null;
+                this.currentSinger = null;
+                this.dequeueAndPlayNext();
+            }
+        },
+
         perTick: function () {
             const player = this.$refs.audioPlayer;
             if (this.state == 'playing' && this.processedLyrics.length > 0 && player.readyState == 4 && !player.paused && !player.ended) {
@@ -164,7 +192,8 @@
                 }
             }
             else {
-                if (player.ended) {
+                if (player.ended && this.currentSong) {
+                    this.state = 'stopped';
                     this.currentSong = null;
                     this.dequeueAndPlayNext();
                 }
@@ -250,7 +279,10 @@
             .configureLogging(signalR.LogLevel.Information)
             .build();
 
-        this.signalRConnection.on("SongAdded", _this.onSongAdded );
+        this.signalRConnection.on("SongAdded", _this.onSongAdded);
+        this.signalRConnection.on("Pause", _this.pause);
+        this.signalRConnection.on("Play", _this.play)
+        this.signalRConnection.on("SkipCurrent", _this.skipCurrent)
         this.startSignalR();
         lyricsTimerInterval = setInterval(_this.perTick, 10);
     }

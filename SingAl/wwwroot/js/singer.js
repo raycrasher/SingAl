@@ -30,8 +30,19 @@
 
         enqueue: async function (song) {
             var result = await postJson('/addsong', { singerId: this.singerId, songId: song.id });
-        }
+        },
 
+        pause: async function () {
+            var result = await postJson('/pause', { singerId: this.singerId });
+        },
+
+        play: async function () {
+            var result = await postJson('/play', { singerId: this.singerId });
+        },
+
+        skip: async function () {
+            var result = await postJson('/skip', { singerId: this.singerId });
+        },
 
     },
     watch: {
